@@ -2,30 +2,40 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>Labirinto</title>
+<title>Labirinto AI</title>
 <link rel="stylesheet" href="style.css">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
 </head>
-
 <body>
 
-<h1>🧠 Labirinto</h1>
-
-<div id="controls">
-    <button onclick="runBFS()">Esegui BFS</button>
-    <button onclick="runDFS()">Esegui DFS</button>
-    <button onclick="runAStar()">Esegui A*</button>
-    <button onclick="runBestFirstRec()">Esegui Best-First Ricorsiva</button>
-    <label style="margin-left:20px;">
-        <input type="checkbox" id="ai-controlled">
-        AI Controlled
-    </label>
+<div id="header">
+    <img src="LogoLabirintoIA2.png" id="logo" alt="AI Logo">
+    <h1>Labirinto: Risoluzione con AI</h1>
 </div>
 
-<div id="best-path-msg" class="hidden"></div>
-<div id="maze"></div>
-<div id="history"><h3>Storico nodi esplorati:</h3></div>
-<div id="explanation"></div>
+<div id="main">
+    <div id="maze-container">
+        <div id="maze"></div>
+    </div>
+
+    <div id="sidebar">
+        <div id="controls">
+            <button class="neon-btn" onclick="runBFS()">Esegui BF5</button>
+            <button class="neon-btn" onclick="runDFS()">Esegui DF5</button>
+            <button class="neon-btn" onclick="runAStar()">Esegui A*</button>
+            <button class="neon-btn" onclick="runBestFirstRec()">Esegui Best-First (Ric.)</button>
+            <label class="neon-label">
+                <input type="checkbox" id="ai-controlled"> AI Controlled
+            </label>
+        </div>
+
+        <div id="history">
+            <h3>Storico delle esecuzioni:</h3>
+        </div>
+
+        <div id="best-path-msg" class="hidden"></div>
+    </div>
+</div>
 
 <script src="script.js"></script>
 </body>
