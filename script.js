@@ -18,6 +18,7 @@ const bestPathMsg = document.getElementById("best-path-msg");
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 let results = {};
+let aiRunning = false;
 
 // =================== DISEGNA LABIRINTO ===================
 function drawMaze() {
@@ -95,89 +96,39 @@ function aStarSolve(){
     return {path:[], visited};
 }
 
-// =================== BEST-FIRST RICORSIVA (RBFS reale, async-friendly) ===================
+// =================== BEST-FIRST RICORSIVA ===================
 async function bestFirstRecursiveSolve(){
-
     const visited = [];
 
-    // RBFS è ricorsiva e async per poter cedere l'event loop con await sleep(0)
     async function RBFS(node, path, g, f_limit, pathSet){
-        // record visit for animation (global list)
         visited.push(node);
+        if(node+"" === goal+"") return {solution: path, f: g};
 
-        // goal test
-        if(node+"" === goal+"")
-            return {solution: path, f: g};
-
-        // genera successori (escludo stati che sono già nell'attuale path per evitare cicli)
         let successors = neighbors(node)
             .filter(nb => !pathSet.has(nb+""))
-            .map(nb=>{
-                return {
-                    state: nb,
-                    path: [...path, nb],
-                    g: g + 1,
-                    h: heuristic(nb, goal),
-                    f: 0
-                };
-        });
+            .map(nb=>({ state: nb, path: [...path, nb], g: g+1, h: heuristic(nb, goal), f:0 }));
 
-        if(successors.length === 0)
-            return {solution: null, f: Infinity};
+        if(successors.length === 0) return {solution: null, f: Infinity};
 
-        // calcola f = max(g+h, parent.g + parent.h? -> qui usiamo g come lower bound)
-        successors.forEach(s=>{
-            s.f = Math.max(s.g + s.h, g);
-        });
+        successors.forEach(s=> s.f = Math.max(s.g + s.h, g));
 
         while(true){
-            // ordina per f crescente
-            successors.sort((a,b)=>a.f - b.f);
-
+            successors.sort((a,b)=>a.f-b.f);
             let best = successors[0];
-
-            // supera il limite → backtracking
-            if(best.f > f_limit)
-                return {solution: null, f: best.f};
-
-            // seconda alternativa
-            let alternative =
-                successors.length > 1 ? successors[1].f : Infinity;
-
-            // prepara pathSet per ricorsione (evita di rientrare sugli antenati)
+            if(best.f > f_limit) return {solution: null, f: best.f};
+            let alternative = successors.length > 1 ? successors[1].f : Infinity;
             pathSet.add(best.state+"");
-
-            // chiamata ricorsiva (limito il nuovo f_limit con l'alternativa)
-            let result = await RBFS(
-                best.state,
-                best.path,
-                best.g,
-                Math.min(f_limit, alternative),
-                pathSet
-            );
-
-            // rimuovo dalla pathSet (backtrack)
+            let result = await RBFS(best.state, best.path, best.g, Math.min(f_limit, alternative), pathSet);
             pathSet.delete(best.state+"");
-
-            // aggiorna f del best con il valore ritornato
             best.f = result.f;
-
-            if(result.solution)
-                return result;
-
-            // cedi l'event loop ogni iterazione per evitare freeze lunghi nella UI
+            if(result.solution) return result;
             await sleep(0);
         }
     }
 
-    // avvio con pathSet che contiene lo start per prevenire cicli su antenati
     const pathSet = new Set([start+""]);
-    let res = await RBFS(start, [start], 0, Infinity, pathSet);
-
-    return {
-        path: res.solution || [],
-        visited
-    };
+    let res = await RBFS(start,[start],0,Infinity,pathSet);
+    return { path: res.solution || [], visited };
 }
 
 // =================== ANIMAZIONE ===================
@@ -198,7 +149,7 @@ async function animate(path, visited, visitedClass, pathClass){
     }
 }
 
-// =================== STORICO E MIGLIORE ===================
+// =================== STORICO ===================
 function updateHistory(alg, visitedLen, pathLen){
     const safe=alg.replace(/\*/g,"star");
     const h=document.getElementById("history");
@@ -211,126 +162,69 @@ function updateHistory(alg, visitedLen, pathLen){
     el.innerHTML=`${alg}: ${visitedLen} nodi esplorati, percorso ${pathLen}`;
 }
 
+// =================== MIGLIORE PERCORSO ===================
 function updateBestPath(){
-    let bestAlg = null;
-    let bestPathLen = Infinity;
-    let bestVisited = Infinity;
+    let bestAlg = null, bestPathLen = Infinity, bestVisited = Infinity;
 
     for(let k in results){
         const r = results[k];
         if(!r.path || r.path.length === 0) continue;
+        const pathLen = r.path.length, visitedLen = r.visited;
 
-        const pathLen = r.path.length;
-        const visitedLen = r.visited;
-
-        // 1) percorso più corto
-        if(pathLen < bestPathLen){
-            bestPathLen = pathLen;
-            bestVisited = visitedLen;
-            bestAlg = k;
-        }
-        // 2) parità di lunghezza → meno nodi esplorati
-        else if(pathLen === bestPathLen && visitedLen < bestVisited){
-            bestVisited = visitedLen;
-            bestAlg = k;
+        if(pathLen < bestPathLen || (pathLen === bestPathLen && visitedLen < bestVisited)){
+            bestAlg = k; bestPathLen = pathLen; bestVisited = visitedLen;
         }
     }
 
     if(bestAlg){
-        bestPathMsg.innerText =
-            `🏆 Percorso migliore: ${bestAlg} (lunghezza ${bestPathLen}, nodi esplorati ${bestVisited})`;
+        bestPathMsg.innerText = `🏆 Percorso migliore: ${bestAlg} (lunghezza ${bestPathLen}, nodi esplorati ${bestVisited})`;
         bestPathMsg.classList.remove("hidden");
     }
 }
 
-// =================== BOTTONI / ESECUZIONE ===================
+// =================== ESECUZIONE ALGORITMI ===================
 async function runAlgo(name, solver, vClass, pClass){
     drawMaze();
-    // supporta solvers sincroni o async
     const res = await solver();
     await animate(res.path,res.visited,vClass,pClass);
     updateHistory(name,res.visited.length,res.path.length);
-    results[name] = {
-    path: res.path,
-    length: res.path.length,
-    visited: res.visited.length
-};
-
+    results[name] = { path: res.path, length: res.path.length, visited: res.visited.length };
     updateBestPath();
 }
 
 async function runAllAlgorithmsAI(){
-    results = {};               // reset risultati
+    results = {};
     bestPathMsg.classList.add("hidden");
 
-    await runAlgo("BFS", bfsSolve, "visited-bfs", "path-bfs");
+    await runAlgo("BF5", bfsSolve, "visited-bfs", "path-bfs");
     await sleep(400);
-
-    await runAlgo("DFS", dfsSolve, "visited-dfs", "path-dfs");
+    await runAlgo("DF5", dfsSolve, "visited-dfs", "path-dfs");
     await sleep(400);
-
     await runAlgo("A*", aStarSolve, "visited-astar", "path-astar");
     await sleep(400);
-
-    await runAlgo(
-        "Best-First (Ric.)",
-        bestFirstRecursiveSolve,
-        "visited-best",
-        "path-best"
-    );
+    await runAlgo("Best-First (Ric.)", bestFirstRecursiveSolve, "visited-best", "path-best");
 }
 
-// =================== AI CONTROLLED & UTILITIES ===================
-function isAIControlled(){
-    return document.getElementById("ai-controlled").checked;
-}
+// =================== AI CONTROLLED ===================
+function isAIControlled(){ return document.getElementById("ai-controlled").checked; }
 
-// espongo funzioni per gli onclick inline (compatibilità con index.html)
-window.runBFS = async () => {
-    if (isAIControlled()) await runAllAlgorithmsAI();
-    else await runAlgo("BFS", bfsSolve, "visited-bfs", "path-bfs");
-};
+window.runBFS = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("BF5", bfsSolve, "visited-bfs", "path-bfs"); };
+window.runDFS = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("DF5", dfsSolve, "visited-dfs", "path-dfs"); };
+window.runAStar = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("A*", aStarSolve, "visited-astar", "path-astar"); };
+window.runBestFirstRec = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("Best-First (Ric.)", bestFirstRecursiveSolve, "visited-best", "path-best"); };
 
-window.runDFS = async () => {
-    if (isAIControlled()) await runAllAlgorithmsAI();
-    else await runAlgo("DFS", dfsSolve, "visited-dfs", "path-dfs");
-};
-
-window.runAStar = async () => {
-    if (isAIControlled()) await runAllAlgorithmsAI();
-    else await runAlgo("A*", aStarSolve, "visited-astar", "path-astar");
-};
-
-window.runBestFirstRec = async () => {
-    if (isAIControlled()) await runAllAlgorithmsAI();
-    else await runAlgo(
-        "Best-First (Ric.)",
-        bestFirstRecursiveSolve,
-        "visited-best",
-        "path-best"
-    );
-};
-
-// gestione checkbox AI Controlled: avvia automaticamente la sequenza
-let aiRunning = false;
 function toggleButtons(disabled){
     document.querySelectorAll("#controls button").forEach(b => b.disabled = disabled);
 }
 
 const aiCheckbox = document.getElementById("ai-controlled");
 aiCheckbox.addEventListener("change", async (e) => {
-    if (e.target.checked && !aiRunning) {
+    if(e.target.checked && !aiRunning){
         aiRunning = true;
         toggleButtons(true);
         results = {};
         bestPathMsg.classList.add("hidden");
-        try {
-            await runAllAlgorithmsAI();
-        } catch(err){
-            console.error("Errore durante runAllAlgorithmsAI:", err);
-        } finally {
-            aiRunning = false;
-            toggleButtons(false);
-        }
+        try{ await runAllAlgorithmsAI(); } catch(err){ console.error(err); }
+        finally{ aiRunning = false; toggleButtons(false); }
     }
 });
