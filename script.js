@@ -204,7 +204,7 @@ async function runAllAlgorithmsAI(){
     await sleep(400);
     await runAlgo("A*", aStarSolve, "visited-astar", "path-astar", true);
     await sleep(400);
-    await runAlgo("Best-First (Ric.)", bestFirstRecursiveSolve, "visited-best", "path-best", true);
+    await runAlgo("RBFS", bestFirstRecursiveSolve, "visited-best", "path-best", true);
 
     // Solo ora mostriamo il miglior percorso (dopo tutte e 4 le esecuzioni)
     updateBestPath();
@@ -233,5 +233,6 @@ aiCheckbox.addEventListener("change", async (e) => {
         finally{ aiRunning = false; toggleButtons(false); }
     }
 });
+
 
 
