@@ -196,9 +196,9 @@ async function runAllAlgorithmsAI(){
     results = {};
     bestPathMsg.classList.add("hidden");
 
-    await runAlgo("BF5", bfsSolve, "visited-bfs", "path-bfs");
+    await runAlgo("BFS", bfsSolve, "visited-bfs", "path-bfs");
     await sleep(400);
-    await runAlgo("DF5", dfsSolve, "visited-dfs", "path-dfs");
+    await runAlgo("DFS", dfsSolve, "visited-dfs", "path-dfs");
     await sleep(400);
     await runAlgo("A*", aStarSolve, "visited-astar", "path-astar");
     await sleep(400);
@@ -208,8 +208,8 @@ async function runAllAlgorithmsAI(){
 // =================== AI CONTROLLED ===================
 function isAIControlled(){ return document.getElementById("ai-controlled").checked; }
 
-window.runBFS = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("BF5", bfsSolve, "visited-bfs", "path-bfs"); };
-window.runDFS = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("DF5", dfsSolve, "visited-dfs", "path-dfs"); };
+window.runBFS = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("BFS", bfsSolve, "visited-bfs", "path-bfs"); };
+window.runDFS = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("DFS", dfsSolve, "visited-dfs", "path-dfs"); };
 window.runAStar = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("A*", aStarSolve, "visited-astar", "path-astar"); };
 window.runBestFirstRec = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("Best-First (Ric.)", bestFirstRecursiveSolve, "visited-best", "path-best"); };
 
@@ -228,3 +228,4 @@ aiCheckbox.addEventListener("change", async (e) => {
         finally{ aiRunning = false; toggleButtons(false); }
     }
 });
+
