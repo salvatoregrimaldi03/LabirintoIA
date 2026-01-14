@@ -22,3 +22,7 @@
    ```bash
    start Index.html
    ```
+## 🧱 Built With
+- [HTML](https://html.spec.whatwg.org/) – Markup language used to define the structure of the maze and the user interface.  
+- [CSS](https://www.w3.org/TR/css/) – Style sheet language used for the visual appearance and layout of the project.  
+- [JavaScript](https://www.javascript.com/) – Programming language used to implement and control the search algorithms within the maze.
