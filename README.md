@@ -9,7 +9,7 @@
 - **Ciro Esposito** - [CiroEsposito](https://github.com/ciroesposito04)
 - **Lorenzo Di Riso** - [LorenzoDiRiso](https://github.com/ldiriso4)
 
-## How to try it?
+## 🚀 How to try it?
 1. Clone the repository:
    ```bash
    git clone https://github.com/salvatoregrimaldi03/LabirintoIA.git
