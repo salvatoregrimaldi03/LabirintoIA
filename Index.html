@@ -1,46 +1,62 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<title>Labirinto AI</title>
-<link rel="stylesheet" href="style.css">
-<link rel="icon" type="image/png" href="LogoLabirintoIA2.png" sizes="96x96">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <title>BATTLESHIP AI - Tactical Command</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="scanline"></div>
+    <div class="container">
+        <header>
+            <h1 class="glitch" data-text="BATTLESHIP_AI">BATTLESHIP_AI</h1>
+            <div class="system-status">SISTEMA: <span id="status">ONLINE</span> | TURNI: <span id="turn-display">0</span></div>
+        </header>
 
-<div id="header">
-    <img src="LogoLabirintoIA2.png" id="logo" alt="AI Logo">
-    <h1>Labirinto: Risoluzione con AI</h1>
-</div>
-
-<div id="main">
-    <div id="maze-container">
-        <div id="maze"></div>
-    </div>
-
-    <div id="sidebar">
-        <div id="controls">
-            <button class="neon-btn" onclick="runBFS()">Esegui BFS</button>
-            <button class="neon-btn" onclick="runDFS()">Esegui DFS</button>
-            <button class="neon-btn" onclick="runAStar()">Esegui A*</button>
-            <button class="neon-btn" onclick="runBestFirstRec()">Esegui RBFS</button>
-            <label class="neon-label">
-                <input type="checkbox" id="ai-controlled"> AI Controlled
-            </label>
+        <div id="ui-layer">
+            <div id="setup-controls">
+                <div class="control-group">
+                    <label>CONFIGURA LOGICA IA:</label>
+                    <select id="difficulty-select" class="neon-select">
+                        <option value="easy">RANDOM_SEARCH</option>
+                        <option value="medium">HUNT_AND_TARGET</option>
+                        <option value="hard" selected>PROBABILITY_MAP_AI</option>
+                    </select>
+                </div>
+                <p>COMANDO: Piazza <span id="current-ship-name">...</span> (<span id="current-ship-len">0</span> unità)</p>
+                <button class="btn-neon" onclick="toggleOrientation()">RUOTA ASSE [R]</button>
+            </div>
+            
+            <div id="game-controls" style="display:none;">
+                <p class="console-msg-info">BATTAGLIA IN CORSO - LOGICA IA BLOCCATA</p>
+            </div>
         </div>
 
-        <div id="history">
-            <h3>Storico delle esecuzioni:</h3>
+        <div class="war-room">
+            <div class="board-wrapper">
+                <div class="label">SETTORE_ALLEATO (IA TARGET)</div>
+                <div id="player-board" class="grid"></div>
+            </div>
+            
+            <div class="v-divider"></div>
+
+            <div class="board-wrapper">
+                <div class="label">SETTORE_NEMICO</div>
+                <div id="ai-board" class="grid"></div>
+            </div>
         </div>
 
-        <div id="best-path-msg" class="hidden"></div>
-    </div>
-</div>
+        <div id="analysis-info" style="font-size: 0.8em; margin: 10px; color: #555;">
+            ANALISI: [H] HEATMAP (SOLO PER TEST) | CONSOLE: runSimulations(100)
+        </div>
 
-<script src="script.js"></script>
+        <div class="console-wrapper">
+            <div class="console-header">IA_THOUGHT_PROCESS >_</div>
+            <div id="ai-console" class="console-body"></div>
+        </div>
+        
+        <button class="btn-reset" onclick="resetGame()">RE-INIZIALIZZA (RESET)</button>
+    </div>
+    <script src="script.js"></script>
 </body>
 </html>
-
-
-
