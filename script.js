@@ -1,240 +1,221 @@
-// =================== LABIRINTO ===================
-const mazeData = [
-    [0,0,1,0,0,0,1,0,0,0,0,1,0,0,0],
-    [0,1,1,1,1,0,1,0,1,1,0,1,0,1,0],
-    [0,0,0,0,1,0,0,0,1,0,0,0,0,1,0],
-    [1,1,1,0,1,1,1,0,1,0,1,1,0,1,0],
-    [0,0,0,0,0,0,1,0,0,0,1,0,0,0,0],
-    [0,1,1,1,1,0,1,1,1,0,1,1,1,1,0],
-    [0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],
-    [0,1,1,0,1,1,1,1,1,1,1,1,1,1,0],
-    [0,0,0,0,0,0,0,0,1,0,0,0,0,1,0],
-    [0,1,1,1,1,1,1,0,0,0,1,1,0,0,0]
+const SIZE = 12;
+const SHIPS_CONFIG = [
+    {name: "Portaerei", len: 5},
+    {name: "Incrociatore", len: 3},
+    {name: "Incrociatore", len: 3},
+    {name: "Cacciatorpediniere", len: 2},
+    {name: "Cacciatorpediniere", len: 2},
+    {name: "Sottomarino", len: 1}
 ];
 
-const start = [0,0], goal = [9,14];
-const maze = document.getElementById("maze");
-const bestPathMsg = document.getElementById("best-path-msg");
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+let playerBoard, aiBoard, isPlacementPhase, currentShipIdx, orientation, aiTargetStack;
+let turnCount = 0;
+let showHeatmap = false;
 
-let results = {};
-let aiRunning = false;
+function logToConsole(msg, type = 'info') {
+    const consoleBody = document.getElementById('ai-console');
+    const div = document.createElement('div');
+    div.innerHTML = `> [${new Date().toLocaleTimeString()}] ${msg}`;
+    if(type === 'warn') div.classList.add('console-msg-warn');
+    else div.classList.add('console-msg-info');
+    consoleBody.prepend(div);
+}
 
-// =================== DISEGNA LABIRINTO ===================
-function drawMaze() {
-    maze.innerHTML = "";
-    mazeData.forEach((r,i) => r.forEach((c,j) => {
-        const d = document.createElement("div");
-        d.className = "cell";
-        if(c) d.classList.add("wall");
-        if(i===start[0] && j===start[1]) d.classList.add("start");
-        if(i===goal[0] && j===goal[1]) d.classList.add("goal");
-        d.id = `c-${i}-${j}`;
-        maze.appendChild(d);
+function resetGame() {
+    playerBoard = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
+    aiBoard = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
+    isPlacementPhase = true;
+    currentShipIdx = 0;
+    orientation = 'H';
+    aiTargetStack = [];
+    turnCount = 0;
+    
+    document.getElementById('turn-display').innerText = "0";
+    document.getElementById('difficulty-select').disabled = false;
+    document.getElementById('setup-controls').style.display = 'block';
+    document.getElementById('game-controls').style.display = 'none';
+    
+    updateSetupUI();
+    renderBoard('player-board', playerBoard, false);
+    renderBoard('ai-board', aiBoard, true);
+    placeAiShips();
+    logToConsole("SISTEMA RESETTATO. Scegli la logica IA e piazza le navi.");
+}
+
+function handleCellClick(id, r, c) {
+    if (isPlacementPhase && id === 'player-board') {
+        let ship = SHIPS_CONFIG[currentShipIdx];
+        if (canFit(playerBoard, r, c, ship.len, orientation)) {
+            for (let i = 0; i < ship.len; i++) {
+                if (orientation === 'H') playerBoard[r][c+i] = 1;
+                else playerBoard[r+i][c] = 1;
+            }
+            currentShipIdx++;
+            if (currentShipIdx >= SHIPS_CONFIG.length) {
+                // FINE FASE SETUP
+                isPlacementPhase = false;
+                document.getElementById('setup-controls').style.display = 'none';
+                document.getElementById('game-controls').style.display = 'block';
+                
+                // BLOCCA LA SCELTA QUI
+                document.getElementById('difficulty-select').disabled = true;
+                
+                logToConsole("FLOTTA PRONTA. MODALITÀ IA CONFERMATA E BLOCCATA.", "warn");
+            }
+            updateSetupUI();
+            renderBoard('player-board', playerBoard, false);
+        }
+    } else if (!isPlacementPhase && id === 'ai-board') {
+        if(aiBoard[r][c] >= 2) return;
+        turnCount++;
+        document.getElementById('turn-display').innerText = turnCount;
+        aiBoard[r][c] = aiBoard[r][c] === 1 ? 3 : 2;
+        renderBoard('ai-board', aiBoard, true);
+        if(!checkWin(aiBoard)) setTimeout(aiTurn, 400);
+        else logToConsole("VITTORIA UTENTE!", "warn");
+    }
+}
+
+function aiTurn() {
+    const diff = document.getElementById('difficulty-select').value;
+    let shot;
+    
+    // Messaggi specifici richiesti
+    if (diff === 'hard') {
+        logToConsole("Attacco probabilistico in corso...");
+        shot = getHardShot();
+    } else if (diff === 'medium') {
+        logToConsole("Ricerca locale in corso...");
+        shot = getMediumShot();
+    } else {
+        logToConsole("Scelta mossa casuale...");
+        shot = getRandomShot();
+    }
+
+    const { r, c } = shot;
+    if (playerBoard[r][c] === 1) {
+        playerBoard[r][c] = 3;
+        logToConsole(`AI: COLPITO a [${r},${c}]!`, "warn");
+        aiTargetStack.push({r:r-1, c}, {r:r+1, c}, {r, c:c-1}, {r, c:c+1});
+        if(checkWin(playerBoard)) logToConsole("AI VITTORIA: Flotta nemica distrutta.");
+        else setTimeout(aiTurn, 600);
+    } else {
+        playerBoard[r][c] = 2;
+        logToConsole(`AI: ACQUA a [${r},${c}]`, "info");
+    }
+    renderBoard('player-board', playerBoard, false);
+}
+
+// ... (tutte le altre funzioni di supporto rimangono uguali a prima)
+function generateProbabilityMap() {
+    let pMap = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
+    SHIPS_CONFIG.forEach(s => {
+        for (let r = 0; r < SIZE; r++) {
+            for (let c = 0; c < SIZE; c++) {
+                if (canFitForProb(r, c, s.len, 'H')) for(let i=0; i<s.len; i++) pMap[r][c+i]++;
+                if (canFitForProb(r, c, s.len, 'V')) for(let i=0; i<s.len; i++) pMap[r+i][c]++;
+            }
+        }
+    });
+    return pMap;
+}
+
+function renderBoard(id, board, isHidden) {
+    const container = document.getElementById(id);
+    container.innerHTML = '';
+    let pMap = (id === 'player-board' && showHeatmap) ? generateProbabilityMap() : null;
+
+    for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            if (pMap && playerBoard[r][c] < 2) {
+                const intensity = Math.min(255, (pMap[r][c] * 12)); 
+                cell.style.backgroundColor = `rgb(${intensity}, ${intensity/4}, ${150 - intensity/2})`;
+                cell.classList.add('heatmap-active');
+            }
+            if (board[r][c] === 1 && !isHidden) cell.classList.add('ship');
+            if (board[r][c] === 2) cell.classList.add('miss');
+            if (board[r][c] === 3) cell.classList.add('hit');
+            cell.onclick = () => handleCellClick(id, r, c);
+            container.appendChild(cell);
+        }
+    }
+}
+
+function getHardShot() {
+    let pMap = generateProbabilityMap();
+    let max = -1, best = {r:0, c:0};
+    pMap.forEach((row, r) => row.forEach((val, c) => {
+        if (playerBoard[r][c] < 2 && val > max) { max = val; best = {r, c}; }
     }));
-}
-drawMaze();
-
-// =================== FUNZIONI AUSILIARIE ===================
-function neighbors([x,y]){
-    return [[x+1,y],[x-1,y],[x,y+1],[x,y-1]]
-        .filter(n=>n[0]>=0&&n[1]>=0&&n[0]<mazeData.length&&n[1]<mazeData[0].length&&mazeData[n[0]][n[1]]===0);
+    return best;
 }
 
-function heuristic(a,b){
-    return Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]);
+function canFit(board, r, c, len, o) {
+    if (o === 'H') {
+        if (c + len > SIZE) return false;
+        for (let i = 0; i < len; i++) if (board[r][c+i] !== 0) return false;
+    } else {
+        if (r + len > SIZE) return false;
+        for (let i = 0; i < len; i++) if (board[r+i][c] !== 0) return false;
+    }
+    return true;
 }
 
-// =================== BFS ===================
-function bfsSolve(){
-    let q=[[start,[start]]], visited=[], set=new Set([start+""]);
-    while(q.length){
-        let [n,p]=q.shift();
-        visited.push(n);
-        if(n+""===goal+"") return {path:p, visited};
-        neighbors(n).forEach(nb=>{
-            if(!set.has(nb+"")){
-                set.add(nb+"");
-                q.push([nb,[...p,nb]]);
+function canFitForProb(r, c, len, o) {
+    if (o === 'H') {
+        if (c + len > SIZE) return false;
+        for (let i = 0; i < len; i++) if (playerBoard[r][c+i] >= 2) return false;
+    } else {
+        if (r + len > SIZE) return false;
+        for (let i = 0; i < len; i++) if (playerBoard[r+i][c] >= 2) return false;
+    }
+    return true;
+}
+
+function getRandomShot() {
+    let r, c;
+    do { r = Math.floor(Math.random()*SIZE); c = Math.floor(Math.random()*SIZE); } while(playerBoard[r][c]>=2);
+    return {r,c};
+}
+
+function getMediumShot() {
+    while(aiTargetStack.length > 0) {
+        let s = aiTargetStack.pop();
+        if(s.r>=0 && s.r<SIZE && s.c>=0 && s.c<SIZE && playerBoard[s.r][s.c]<2) return s;
+    }
+    return getRandomShot();
+}
+
+function placeAiShips() {
+    SHIPS_CONFIG.forEach(s => {
+        let placed = false;
+        while(!placed) {
+            let r = Math.floor(Math.random()*SIZE), c = Math.floor(Math.random()*SIZE), o = Math.random()>0.5?'H':'V';
+            if(canFit(aiBoard, r, c, s.len, o)) {
+                for(let i=0; i<s.len; i++) { if(o==='H') aiBoard[r][c+i] = 1; else aiBoard[r+i][c] = 1; }
+                placed = true;
             }
-        });
-    }
-    return {path:[], visited};
-}
-
-// =================== DFS ===================
-function dfsSolve(){
-    let stack=[[start,[start]]], visited=[], set=new Set([start+""]);
-    while(stack.length){
-        let [n,p]=stack.pop();
-        visited.push(n);
-        if(n+""===goal+"") return {path:p, visited};
-        neighbors(n).forEach(nb=>{
-            if(!set.has(nb+"")){
-                set.add(nb+"");
-                stack.push([nb,[...p,nb]]);
-            }
-        });
-    }
-    return {path:[], visited};
-}
-
-// =================== A* ===================
-function aStarSolve(){
-    let open=[[heuristic(start,goal),0,start,[start]]], visited=[], set=new Set();
-    while(open.length){
-        open.sort((a,b)=>a[0]-b[0]);
-        let [f,g,n,p]=open.shift();
-        if(set.has(n+"")) continue;
-        set.add(n+"");
-        visited.push(n);
-        if(n+""===goal+"") return {path:p, visited};
-        neighbors(n).forEach(nb=>{
-            open.push([g+1+heuristic(nb,goal), g+1, nb, [...p,nb]]);
-        });
-    }
-    return {path:[], visited};
-}
-
-// =================== BEST-FIRST RICORSIVA ===================
-async function bestFirstRecursiveSolve(){
-    const visited = [];
-
-    async function RBFS(node, path, g, f_limit, pathSet){
-        visited.push(node);
-        if(node+"" === goal+"") return {solution: path, f: g};
-
-        let successors = neighbors(node)
-            .filter(nb => !pathSet.has(nb+""))
-            .map(nb=>({ state: nb, path: [...path, nb], g: g+1, h: heuristic(nb, goal), f:0 }));
-
-        if(successors.length === 0) return {solution: null, f: Infinity};
-
-        successors.forEach(s=> s.f = Math.max(s.g + s.h, g));
-
-        while(true){
-            successors.sort((a,b)=>a.f-b.f);
-            let best = successors[0];
-            if(best.f > f_limit) return {solution: null, f: best.f};
-            let alternative = successors.length > 1 ? successors[1].f : Infinity;
-            pathSet.add(best.state+"");
-            let result = await RBFS(best.state, best.path, best.g, Math.min(f_limit, alternative), pathSet);
-            pathSet.delete(best.state+"");
-            best.f = result.f;
-            if(result.solution) return result;
-            await sleep(0);
         }
-    }
-
-    const pathSet = new Set([start+""]);
-    let res = await RBFS(start,[start],0,Infinity,pathSet);
-    return { path: res.solution || [], visited };
+    });
 }
 
-// =================== ANIMAZIONE ===================
-async function animate(path, visited, visitedClass, pathClass){
-    for(let [x,y] of visited){
-        const el=document.getElementById(`c-${x}-${y}`);
-        if(el && !el.classList.contains("start") && !el.classList.contains("goal")){
-            el.classList.add(visitedClass);
-            await sleep(20);
-        }
-    }
-    for(let [x,y] of path){
-        const el=document.getElementById(`c-${x}-${y}`);
-        if(el && !el.classList.contains("start") && !el.classList.contains("goal")){
-            el.classList.add(pathClass);
-            await sleep(40);
-        }
+function checkWin(board) { return !board.flat().includes(1); }
+function toggleOrientation() { orientation = orientation === 'H' ? 'V' : 'H'; }
+function updateSetupUI() {
+    const ship = SHIPS_CONFIG[currentShipIdx];
+    if(ship) {
+        document.getElementById('current-ship-name').innerText = ship.name;
+        document.getElementById('current-ship-len').innerText = ship.len;
     }
 }
 
-// =================== STORICO ===================
-function updateHistory(alg, visitedLen, pathLen){
-    const safe=alg.replace(/\*/g,"star");
-    const h=document.getElementById("history");
-    let el=document.getElementById(`history-${safe}`);
-    if(!el){
-        el=document.createElement("p");
-        el.id=`history-${safe}`;
-        h.appendChild(el);
-    }
-    el.innerHTML=`${alg}: ${visitedLen} nodi esplorati, percorso ${pathLen}`;
-}
-
-// =================== MIGLIORE PERCORSO ===================
-function updateBestPath(){
-    let bestAlg = null, bestPathLen = Infinity, bestVisited = Infinity;
-
-    for(let k in results){
-        const r = results[k];
-        if(!r.path || r.path.length === 0) continue;
-        const pathLen = r.path.length, visitedLen = r.visited;
-
-        if(pathLen < bestPathLen || (pathLen === bestPathLen && visitedLen < bestVisited)){
-            bestAlg = k; bestPathLen = pathLen; bestVisited = visitedLen;
-        }
-    }
-
-    if(bestAlg){
-        bestPathMsg.innerText = `🏆 Percorso migliore: ${bestAlg} (lunghezza ${bestPathLen}, nodi esplorati ${bestVisited})`;
-        bestPathMsg.classList.remove("hidden");
-    }
-}
-
-// =================== ESECUZIONE ALGORITMI ===================
-async function runAlgo(name, solver, vClass, pClass, suppressBest = false){
-    drawMaze();
-    const res = await solver();
-    await animate(res.path,res.visited,vClass,pClass);
-    updateHistory(name,res.visited.length,res.path.length);
-    results[name] = { path: res.path, length: res.path.length, visited: res.visited.length };
-    if(!suppressBest){
-        updateBestPath();
-    }
-}
-
-async function runAllAlgorithmsAI(){
-    results = {};
-    bestPathMsg.classList.add("hidden");
-
-    await runAlgo("BFS", bfsSolve, "visited-bfs", "path-bfs", true);
-    await sleep(400);
-    await runAlgo("DFS", dfsSolve, "visited-dfs", "path-dfs", true);
-    await sleep(400);
-    await runAlgo("A*", aStarSolve, "visited-astar", "path-astar", true);
-    await sleep(400);
-    await runAlgo("RBFS", bestFirstRecursiveSolve, "visited-best", "path-best", true);
-
-    // Solo ora mostriamo il miglior percorso (dopo tutte e 4 le esecuzioni)
-    updateBestPath();
-}
-
-// =================== AI CONTROLLED ===================
-function isAIControlled(){ return document.getElementById("ai-controlled").checked; }
-
-window.runBFS = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("BFS", bfsSolve, "visited-bfs", "path-bfs"); };
-window.runDFS = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("DFS", dfsSolve, "visited-dfs", "path-dfs"); };
-window.runAStar = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("A*", aStarSolve, "visited-astar", "path-astar"); };
-window.runBestFirstRec = async () => { if(isAIControlled()) await runAllAlgorithmsAI(); else await runAlgo("RBFS", bestFirstRecursiveSolve, "visited-best", "path-best"); };
-
-
-function toggleButtons(disabled){
-    document.querySelectorAll("#controls button").forEach(b => b.disabled = disabled);
-}
-
-const aiCheckbox = document.getElementById("ai-controlled");
-aiCheckbox.addEventListener("change", async (e) => {
-    if(e.target.checked && !aiRunning){
-        aiRunning = true;
-        toggleButtons(true);
-        results = {};
-        bestPathMsg.classList.add("hidden");
-        try{ await runAllAlgorithmsAI(); } catch(err){ console.error(err); }
-        finally{ aiRunning = false; toggleButtons(false); }
+window.onload = resetGame;
+window.addEventListener('keydown', (e) => { 
+    if(e.key.toLowerCase()==='r') toggleOrientation();
+    if(e.key.toLowerCase()==='h') {
+        showHeatmap = !showHeatmap;
+        renderBoard('player-board', playerBoard, false);
     }
 });
-
-
-
-
