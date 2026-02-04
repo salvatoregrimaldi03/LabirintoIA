@@ -61,11 +61,9 @@ header { margin-bottom: 12px; }
 .local-controls { display:flex; gap:8px; align-items:center; margin-top:6px; }
 .info-line { font-size:0.82em; color:#a6e9e9; margin-left:6px; }
 
-/* center buttons group */
 .center-buttons { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; align-items:center; }
 .center-note { font-size:0.82em; color:#9cc; margin-top:6px; }
 
-/* button styles */
 .btn-neon {
     background: transparent;
     border: 1px solid var(--neon-blue);
@@ -104,7 +102,6 @@ header { margin-bottom: 12px; }
 }
 .btn-small:hover { background: rgba(255,255,255,0.06); }
 
-/* select */
 .neon-select {
     background: black;
     color: var(--neon-blue);
@@ -184,7 +181,7 @@ header { margin-bottom: 12px; }
 }
 @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
 
-/* console styling (due console affiancate) */
+/* console styling - modifiche per centrare la console */
 .console-row {
   display: flex;
   gap: 12px;
@@ -192,6 +189,8 @@ header { margin-bottom: 12px; }
   justify-content: center;
 }
 
+/* ---------- CENTERED CONSOLE ---------- */
+/* Modificata per centrare orizzontalmente il box della console */
 .console-wrapper {
   display: flex;
   flex-direction: column;
@@ -200,9 +199,13 @@ header { margin-bottom: 12px; }
   background: rgba(0,0,0,0.34);
   padding: 6px;
   box-sizing: border-box;
-  width: 48%;
+
+  width: 60%;          /* larghezza della console (regolabile) */
+  max-width: 820px;    /* limite massimo */
+  margin: 14px auto;   /* centra orizzontalmente */
 }
 
+/* intestazione centrata per un bilanciamento visivo */
 .console-header {
   font-weight: 700;
   margin-bottom: 6px;
@@ -211,6 +214,7 @@ header { margin-bottom: 12px; }
   background: #0b1113;
   padding: 6px 8px;
   border-bottom: 1px solid rgba(120,120,120,0.08);
+  text-align: center;  /* qui avviene la centratura del testo dell'intestazione */
 }
 
 .console-body {
@@ -220,7 +224,16 @@ header { margin-bottom: 12px; }
   font-size: 0.92em;
   color: #2fe6ff;
   height: 180px;
-  text-align: left;
+  text-align: left;    /* mantiene i log allineati a sinistra per leggibilità */
+}
+
+/* responsive: su schermi stretti la console si espande quasi al 100% */
+@media (max-width: 700px) {
+  .console-wrapper {
+    width: 95%;
+    max-width: none;
+    margin: 12px auto;
+  }
 }
 
 /* message color classes */
