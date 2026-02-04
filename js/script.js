@@ -1,3 +1,4 @@
+// js/script.js
 const SIZE = 12;
 const SHIPS_CONFIG = [
     {name: "Portaerei", len: 5},
@@ -12,8 +13,15 @@ let playerBoard, aiBoard, isPlacementPhase, currentShipIdx, orientation, aiTarge
 let turnCount = 0;
 let showHeatmap = false;
 
+// --- Nuove variabili di statistica per il report H vs AI ---
+let statsHumanHits = 0;
+let statsHumanMisses = 0;
+let statsAIHits = 0;
+let statsAIMisses = 0;
+
 function logToConsole(msg, type = 'info') {
     const consoleBody = document.getElementById('ai-console');
+    if (!consoleBody) return;
     const div = document.createElement('div');
     div.innerHTML = `> [${new Date().toLocaleTimeString()}] ${msg}`;
     if(type === 'warn') div.classList.add('console-msg-warn');
@@ -29,11 +37,20 @@ function resetGame() {
     orientation = 'H';
     aiTargetStack = [];
     turnCount = 0;
+
+    // reset statistiche
+    statsHumanHits = 0;
+    statsHumanMisses = 0;
+    statsAIHits = 0;
+    statsAIMisses = 0;
     
     document.getElementById('turn-display').innerText = "0";
-    document.getElementById('difficulty-select').disabled = false;
-    document.getElementById('setup-controls').style.display = 'block';
-    document.getElementById('game-controls').style.display = 'none';
+    const diffSel = document.getElementById('difficulty-select');
+    if (diffSel) diffSel.disabled = false;
+    const setupControls = document.getElementById('setup-controls');
+    const gameControls = document.getElementById('game-controls');
+    if (setupControls) setupControls.style.display = 'block';
+    if (gameControls) gameControls.style.display = 'none';
     
     updateSetupUI();
     renderBoard('player-board', playerBoard, false);
@@ -54,11 +71,14 @@ function handleCellClick(id, r, c) {
             if (currentShipIdx >= SHIPS_CONFIG.length) {
                 // FINE FASE SETUP
                 isPlacementPhase = false;
-                document.getElementById('setup-controls').style.display = 'none';
-                document.getElementById('game-controls').style.display = 'block';
+                const setup = document.getElementById('setup-controls');
+                const game = document.getElementById('game-controls');
+                if (setup) setup.style.display = 'none';
+                if (game) game.style.display = 'block';
                 
-                // BLOCCA LA SCELTA QUI
-                document.getElementById('difficulty-select').disabled = true;
+                // BLOCCA LA SCELTA DELLA DIFFICOLTÀ QUI
+                const diffSel = document.getElementById('difficulty-select');
+                if (diffSel) diffSel.disabled = true;
                 
                 logToConsole("FLOTTA PRONTA. MODALITÀ IA CONFERMATA E BLOCCATA.", "warn");
             }
@@ -69,15 +89,30 @@ function handleCellClick(id, r, c) {
         if(aiBoard[r][c] >= 2) return;
         turnCount++;
         document.getElementById('turn-display').innerText = turnCount;
-        aiBoard[r][c] = aiBoard[r][c] === 1 ? 3 : 2;
+
+        // Conta colpo umano prima di modificare la board
+        if (aiBoard[r][c] === 1) {
+            statsHumanHits++;
+            aiBoard[r][c] = 3;
+        } else {
+            statsHumanMisses++;
+            aiBoard[r][c] = 2;
+        }
+
         renderBoard('ai-board', aiBoard, true);
-        if(!checkWin(aiBoard)) setTimeout(aiTurn, 400);
-        else logToConsole("VITTORIA UTENTE!", "warn");
+
+        if(!checkWin(aiBoard)) {
+            setTimeout(aiTurn, 400);
+        } else {
+            logToConsole("VITTORIA UTENTE!", "warn");
+            // Salva report Human vs AI (winner 'A' = human)
+            saveHvAReport('A');
+        }
     }
 }
 
 function aiTurn() {
-    const diff = document.getElementById('difficulty-select').value;
+    const diff = document.getElementById('difficulty-select') ? document.getElementById('difficulty-select').value : 'easy';
     let shot;
     
     // Messaggi specifici richiesti
@@ -95,12 +130,19 @@ function aiTurn() {
     const { r, c } = shot;
     if (playerBoard[r][c] === 1) {
         playerBoard[r][c] = 3;
+        statsAIHits++;
         logToConsole(`AI: COLPITO a [${r},${c}]!`, "warn");
         aiTargetStack.push({r:r-1, c}, {r:r+1, c}, {r, c:c-1}, {r, c:c+1});
-        if(checkWin(playerBoard)) logToConsole("AI VITTORIA: Flotta nemica distrutta.");
-        else setTimeout(aiTurn, 600);
+        if(checkWin(playerBoard)) {
+            logToConsole("AI VITTORIA: Flotta nemica distrutta.");
+            // Salva report Human vs AI (winner 'B' = AI)
+            saveHvAReport('B');
+        } else {
+            setTimeout(aiTurn, 600);
+        }
     } else {
         playerBoard[r][c] = 2;
+        statsAIMisses++;
         logToConsole(`AI: ACQUA a [${r},${c}]`, "info");
     }
     renderBoard('player-board', playerBoard, false);
@@ -122,6 +164,7 @@ function generateProbabilityMap() {
 
 function renderBoard(id, board, isHidden) {
     const container = document.getElementById(id);
+    if (!container) return;
     container.innerHTML = '';
     let pMap = (id === 'player-board' && showHeatmap) ? generateProbabilityMap() : null;
 
@@ -191,11 +234,29 @@ function getMediumShot() {
 function placeAiShips() {
     SHIPS_CONFIG.forEach(s => {
         let placed = false;
-        while(!placed) {
+        let attempts = 0;
+        const MAX_ATTEMPTS = 500;
+        while(!placed && attempts < MAX_ATTEMPTS) {
+            attempts++;
             let r = Math.floor(Math.random()*SIZE), c = Math.floor(Math.random()*SIZE), o = Math.random()>0.5?'H':'V';
             if(canFit(aiBoard, r, c, s.len, o)) {
                 for(let i=0; i<s.len; i++) { if(o==='H') aiBoard[r][c+i] = 1; else aiBoard[r+i][c] = 1; }
                 placed = true;
+            }
+        }
+        if(!placed) {
+            // fallback scan
+            outer: for (let rr = 0; rr < SIZE && !placed; rr++) {
+                for (let cc = 0; cc < SIZE && !placed; cc++) {
+                    if (canFit(aiBoard, rr, cc, s.len, 'H')) {
+                        for (let i = 0; i < s.len; i++) aiBoard[rr][cc+i] = 1;
+                        placed = true; break outer;
+                    }
+                    if (canFit(aiBoard, rr, cc, s.len, 'V')) {
+                        for (let i = 0; i < s.len; i++) aiBoard[rr+i][cc] = 1;
+                        placed = true; break outer;
+                    }
+                }
             }
         }
     });
@@ -206,8 +267,45 @@ function toggleOrientation() { orientation = orientation === 'H' ? 'V' : 'H'; }
 function updateSetupUI() {
     const ship = SHIPS_CONFIG[currentShipIdx];
     if(ship) {
-        document.getElementById('current-ship-name').innerText = ship.name;
-        document.getElementById('current-ship-len').innerText = ship.len;
+        const elName = document.getElementById('current-ship-name');
+        const elLen = document.getElementById('current-ship-len');
+        if (elName) elName.innerText = ship.name;
+        if (elLen) elLen.innerText = ship.len;
+    }
+}
+
+// --- Funzione che salva il report Human vs AI in localStorage ---
+// winner: 'A' = Utente, 'B' = AI
+function saveHvAReport(winner) {
+    const diffSel = document.getElementById('difficulty-select');
+    const difficultyValue = diffSel ? diffSel.value : 'easy';
+    const difficultyLabel = diffSel ? (diffSel.options[diffSel.selectedIndex] ? diffSel.options[diffSel.selectedIndex].text : difficultyValue) : difficultyValue;
+
+    const reportData = {
+        // usiamo la stessa struttura che usa il report IA vs IA,
+        // mappando AGENTE A = UTENTE (blue) e AGENTE B = IA (red)
+        winner: winner,
+        turns: turnCount,
+        timestamp: new Date().toLocaleString(),
+        stats: {
+            A: { hits: statsHumanHits, misses: statsHumanMisses, algo: 'UTENTE' },
+            B: { hits: statsAIHits, misses: statsAIMisses, algo: difficultyLabel }
+        },
+        // parametri utili per distinguere il report e renderlo correttamente
+        params: {
+            mode: 'HVA', // Human vs AI
+            iaDifficulty: difficultyValue,
+            iaDifficultyLabel: difficultyLabel,
+            size: SIZE,
+            ships: SHIPS_CONFIG.map(s => ({ name: s.name, len: s.len }))
+        }
+    };
+
+    try {
+        localStorage.setItem('battleshipReport', JSON.stringify(reportData));
+        logToConsole("Report salvato localmente (puoi visualizzarlo con ULTIMO REPORT PDF).", "info");
+    } catch (e) {
+        console.warn('Errore salvataggio report:', e);
     }
 }
 
