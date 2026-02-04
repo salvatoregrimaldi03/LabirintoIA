@@ -36,11 +36,6 @@
                     <button class="btn-neon" id="start-btn">AVVIA SIMULAZIONE</button>
                     <button class="btn-neon" id="pause-btn">PAUSA</button>
                     <button class="btn-reset" id="reset-btn">RESET</button>
-                    
-                    <button class="btn-neon" style="border-color: #ffee00; color: #ffee00; opacity: 0.8;" onclick="window.location.href='report.html'">ULTIMO REPORT</button>
-                    
-                    <button class="btn-neon" id="btn-new-report" style="display:none; background: rgba(255, 238, 0, 0.1); border-color:#ffee00; color:#ffee00; font-weight:bold;" onclick="window.location.href='report.html'">NUOVO REPORT PRONTO!</button>
-                    
                     <button class="btn-neon" id="back-btn" onclick="window.location.href='index.html'">TORNA HOME</button>
                 </div>
                 <div class="center-note">Scegli le logiche su entrambi i lati prima di avviare.</div>
@@ -86,6 +81,14 @@
                 <div class="console-header">IA_B_CONSOLE &gt;_</div>
                 <div id="sim-console-B" class="console-body"></div>
             </div>
+        </div>
+
+        <!-- NUOVA POSIZIONE: pulsanti report subito sotto le console -->
+        <div class="report-row" style="margin-top:12px; text-align:center;">
+            <button class="btn-neon" id="last-report-btn" style="border-color: #ffee00; color: #ffee00; opacity: 0.8;" onclick="window.location.href='report.html'">ULTIMO REPORT</button>
+
+            <!-- bottone nascosto che viene mostrato dal JS quando c'è un nuovo report -->
+            <button class="btn-neon" id="btn-new-report" style="display:none; background: rgba(255, 238, 0, 0.1); border-color:#ffee00; color:#ffee00; font-weight:bold; margin-left:12px;" onclick="window.location.href='report.html'">NUOVO REPORT PRONTO!</button>
         </div>
 
     </div>
