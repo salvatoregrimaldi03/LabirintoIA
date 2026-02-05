@@ -1,10 +1,5 @@
 // js/ai_vs_ai.js
-// Simulazione Battleship IA vs IA — versione completa e aggiornata
-// Aggiunte principali rispetto alla versione originale:
-// - blocco/sblocco dei select delle IA durante la simulazione
-// - controllo robusto degli elementi DOM (per evitare errori se qualche id manca)
-// - salvataggio report in localStorage e visualizzazione del bottone "NUOVO REPORT PRONTO!"
-// - log dettagliato nelle due console con colori distinti
+// Simulazione Battleship IA vs IA — versione completa con TIMELINE LOG
 
 // ---------------- CONFIG ----------------
 const SIZE = 12;
@@ -34,7 +29,11 @@ let stackB = [];
 let showShipsA = false;
 let showShipsB = false;
 
-// Statistiche per il report
+// LOG BATTAGLIA (Timeline per il grafico)
+// Struttura:Array<{ turn: number, shooter: 'A'|'B', isHit: boolean }>
+let battleLog = [];
+
+// Statistiche totali
 let matchStats = {
     A: { hits: 0, misses: 0, algo: '' },
     B: { hits: 0, misses: 0, algo: '' }
@@ -46,10 +45,6 @@ function $(id) {
 }
 
 // ---------------- LOGGING ----------------
-/**
- * logSim(msg, target='A'|'B'|'all', type='info'|'warn')
- * Scrive il messaggio nelle console A e/o B. Usa colori diversi per A/B.
- */
 function logSim(msg, target = 'A', type = 'info') {
     const write = (el, color) => {
         if (!el) return;
@@ -65,11 +60,7 @@ function logSim(msg, target = 'A', type = 'info') {
     if (target === 'B' || target === 'all') write($('sim-console-B'), '#ffb0d1');
 }
 
-// ---------------- BLOCCO UI (SELECT) ----------------
-/**
- * lockAiSelectors(true)  -> disabilita select delle IA
- * lockAiSelectors(false) -> abilita select delle IA
- */
+// ---------------- BLOCCO UI ----------------
 function lockAiSelectors(lock) {
     const a = $('iaA-select');
     const b = $('iaB-select');
@@ -79,13 +70,11 @@ function lockAiSelectors(lock) {
 
 // ---------------- INIZIALIZZAZIONE SIM ----------------
 function resetSim() {
-    // crea board e knowledge
     boardA = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
     boardB = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
     knowA  = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
     knowB  = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
 
-    // stato
     simTurnCount = 0;
     turn = 'A';
     running = false;
@@ -94,38 +83,32 @@ function resetSim() {
     showShipsA = false;
     showShipsB = false;
 
-    // sblocca i select (reset garantisce ambiente pulito)
-    lockAiSelectors(false);
-
-    // reset stats
+    // Reset LOG e Stats
+    battleLog = [];
     matchStats = {
         A: { hits: 0, misses: 0, algo: '' },
         B: { hits: 0, misses: 0, algo: '' }
     };
 
-    // cancella timeout se esistente
+    lockAiSelectors(false);
+
     if (simTimeout) {
         clearTimeout(simTimeout);
         simTimeout = null;
     }
 
-    // update status UI se presenti
     if ($('sim-status')) $('sim-status').innerText = 'FERMA';
     if ($('sim-turn')) $('sim-turn').innerText = '0';
 
-    // nascondi bottone nuovo report se presente
     const btnNewReport = $('btn-new-report');
     if (btnNewReport) btnNewReport.style.display = 'none';
 
-    // piazza navi
     placeRandomShips(boardA);
     placeRandomShips(boardB);
 
-    // render board iniziali (con le navi nascoste)
     renderSimBoard('boardA', boardA, true);
     renderSimBoard('boardB', boardB, true);
 
-    // svuota console se presenti
     if ($('sim-console-A')) $('sim-console-A').innerHTML = '';
     if ($('sim-console-B')) $('sim-console-B').innerHTML = '';
 
@@ -134,7 +117,6 @@ function resetSim() {
 
 // ---------------- PIAZZAMENTO NAVI ----------------
 function placeRandomShips(board) {
-    // Per ogni tipo di nave, tenta di piazzarla fino a un numero massimo di tentativi
     SHIPS_CONFIG.forEach(s => {
         let placed = false;
         let attempts = 0;
@@ -153,7 +135,6 @@ function placeRandomShips(board) {
             }
         }
         if (!placed) {
-            // In caso estremo, prova un piazzamento forzato (scansiona e trova una posizione valida)
             outer: for (let rr = 0; rr < SIZE && !placed; rr++) {
                 for (let cc = 0; cc < SIZE && !placed; cc++) {
                     if (canFit(board, rr, cc, s.len, 'H')) {
@@ -187,15 +168,11 @@ function canFit(board, r, c, len, o) {
 function renderSimBoard(id, board, hideShips) {
     const el = $(id);
     if (!el) return;
-    // pulisci
     el.innerHTML = '';
-
-    // crea celle (senza data attributes per semplicità)
     for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
             const cell = document.createElement('div');
             cell.className = 'cell';
-            // stato cella: 0 empty, 1 ship, 2 miss, 3 hit
             const val = board[r][c];
             if (val === 1 && !hideShips) cell.classList.add('ship');
             if (val === 2) cell.classList.add('miss');
@@ -226,18 +203,14 @@ function getMediumShot(knowledge, stack) {
 }
 
 function getHardShot(knowledge) {
-    // mappa di probabilità per ogni cella
     const pMap = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
-
     SHIPS_CONFIG.forEach(s => {
         const len = s.len;
         for (let r = 0; r < SIZE; r++) {
             for (let c = 0; c < SIZE; c++) {
-                // orizzontale
                 if (canFitProb(knowledge, r, c, len, 'H')) {
                     for (let i = 0; i < len; i++) pMap[r][c + i]++;
                 }
-                // verticale
                 if (canFitProb(knowledge, r, c, len, 'V')) {
                     for (let i = 0; i < len; i++) pMap[r + i][c]++;
                 }
@@ -270,17 +243,7 @@ function canFitProb(knowledge, r, c, len, o) {
 }
 
 // ---------------- APPLICA COLPO ----------------
-/**
- * applyShot(shooter, targetBoard, knowledge, stack)
- * - shooter: 'A' or 'B' (indica chi spara)
- * - targetBoard: board dell'avversario
- * - knowledge: mappa della conoscenza del tiratore
- * - stack: stack usato dalla strategia media per inseguire i colpi
- *
- * Ritorna true se hit, false se miss.
- */
 function applyShot(shooter, targetBoard, knowledge, stack) {
-    // scegli la strategia dalla select corrispondente
     const sel = (shooter === 'A') ? $('iaA-select') : $('iaB-select');
     let logic = 'easy';
     let algoText = '';
@@ -290,7 +253,6 @@ function applyShot(shooter, targetBoard, knowledge, stack) {
         algoText = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : sel.value;
     }
 
-    // registra la strategia usata nello stats (utile per il report)
     if (matchStats[shooter]) matchStats[shooter].algo = algoText || logic;
 
     let shot;
@@ -300,9 +262,7 @@ function applyShot(shooter, targetBoard, knowledge, stack) {
 
     const { r, c } = shot;
 
-    // protezione: se la cella è già stata esplorata, ridistribuisci con random
     if (knowledge[r][c] >= 2) {
-        // fallback: trova la prima cella libera (deve essere rara)
         outerFallback: for (let rr = 0; rr < SIZE; rr++) {
             for (let cc = 0; cc < SIZE; cc++) {
                 if (knowledge[rr][cc] < 2) {
@@ -313,40 +273,39 @@ function applyShot(shooter, targetBoard, knowledge, stack) {
         }
     }
 
-    // applica colpo
-    if (targetBoard[shot.r][shot.c] === 1) {
-        // colpito
-        targetBoard[shot.r][shot.c] = 3; // stato hit sulla board target
-        knowledge[shot.r][shot.c] = 3;    // conoscenza del tiratore
+    let isHit = false;
 
-        // push dei vicini nel caso si voglia inseguire la nave
+    if (targetBoard[shot.r][shot.c] === 1) {
+        targetBoard[shot.r][shot.c] = 3; 
+        knowledge[shot.r][shot.c] = 3;
         stack.push(
             { r: shot.r - 1, c: shot.c },
             { r: shot.r + 1, c: shot.c },
             { r: shot.r, c: shot.c - 1 },
             { r: shot.r, c: shot.c + 1 }
         );
-
         logSim(`COLPITO a [${shot.r},${shot.c}]`, shooter, 'warn');
-
         if (matchStats[shooter]) matchStats[shooter].hits++;
-
-        return true;
+        isHit = true;
     } else {
-        // acqua (miss)
         if (targetBoard[shot.r][shot.c] === 0) targetBoard[shot.r][shot.c] = 2;
         knowledge[shot.r][shot.c] = 2;
-
         logSim(`ACQUA a [${shot.r},${shot.c}]`, shooter, 'info');
-
         if (matchStats[shooter]) matchStats[shooter].misses++;
-
-        return false;
+        isHit = false;
     }
+
+    // --- REGISTRAZIONE NELLA TIMELINE ---
+    battleLog.push({
+        turn: simTurnCount,
+        shooter: shooter,
+        isHit: isHit
+    });
+
+    return isHit;
 }
 
 function checkWin(board) {
-    // se non esistono più celle con valore 1, l'avversario ha perso
     for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
             if (board[r][c] === 1) return false;
@@ -382,8 +341,6 @@ function runSimulationStep() {
     }
 
     updateCounts();
-
-    // velocità dinamica: se è stato hit, esegui più rapido per simulare "inseguimento"
     const delay = hit ? 150 : 300;
     simTimeout = setTimeout(runSimulationStep, delay);
 }
@@ -392,12 +349,13 @@ function finishGame(winner) {
     logSim(`IA ${winner} VINCE LA SIMULAZIONE!`, 'all', 'warn');
     stopSimulation();
 
-    // prepara dati report
+    // SALVA REPORT CON HISTORY
     const reportData = {
         winner,
         turns: simTurnCount,
         timestamp: new Date().toLocaleString(),
         stats: matchStats,
+        history: battleLog, // <-- ECCO IL NUOVO DATO
         params: {
             size: SIZE,
             ships: SHIPS_CONFIG.map(s => ({ name: s.name, len: s.len })),
@@ -412,44 +370,30 @@ function finishGame(winner) {
         console.warn('Impossibile salvare report in localStorage:', e);
     }
 
-    // mostra bottone nuovo report se esiste
     const btn = $('btn-new-report');
     if (btn) btn.style.display = 'inline-block';
 }
 
-// ---------------- CONTROLLI (start / stop / reset) ----------------
+// ---------------- CONTROLLI ----------------
 function startSimulation() {
     if (running) return;
     running = true;
-
-    // blocca i select per impedire cambi a runtime
     lockAiSelectors(true);
-
     if ($('sim-status')) $('sim-status').innerText = 'IN ESECUZIONE';
-
-    // nascondi il bottone "nuovo report" se c'era
     const btnNew = $('btn-new-report');
     if (btnNew) btnNew.style.display = 'none';
-
     logSim('Simulazione avviata.', 'all', 'info');
-
-    // avvia il loop
     runSimulationStep();
 }
 
 function stopSimulation() {
-    // ferma il loop senza resettare tutto
     running = false;
     if (simTimeout) {
         clearTimeout(simTimeout);
         simTimeout = null;
     }
-
-    // sblocca i select in modo che l'utente possa cambiare la logica dopo la pausa
     lockAiSelectors(false);
-
     if ($('sim-status')) $('sim-status').innerText = 'FERMA';
-
     logSim('Simulazione fermata.', 'all', 'info');
 }
 
@@ -458,9 +402,7 @@ function toggleSimulation() {
     else startSimulation();
 }
 
-// ---------------- HOOK UI E FUNZIONALITA' ACCESSORIE ----------------
 function hookAiUi() {
-    // start, pause, reset pulsanti
     const startBtn = $('start-btn');
     const pauseBtn = $('pause-btn');
     const resetBtn = $('reset-btn');
@@ -484,19 +426,14 @@ function hookAiUi() {
         logSim(`MOSTRA NAVI B: ${showShipsB ? 'ON' : 'OFF'}`, 'B', 'info');
     };
 
-    // se c'è un report salvato abilita il bottone "ULTIMO REPORT"
     try {
         const saved = localStorage.getItem('battleshipReport');
         if (saved && lastReportBtn) lastReportBtn.style.display = 'inline-block';
-    } catch (e) {
-        // ignore storage errors
-    }
+    } catch (e) {}
 
-    // aggiorna i count ogni 400ms (puoi ridurre il polling se vuoi)
     setInterval(updateCounts, 400);
 }
 
-// ---------------- AGGIORNAMENTO CONTEGGI ----------------
 function updateCounts() {
     if (boardA && $('countA')) {
         $('countA').innerText = boardA.flat().filter(x => x === 1).length;
@@ -506,7 +443,6 @@ function updateCounts() {
     }
 }
 
-// ---------------- INIZIO ----------------
 document.addEventListener('DOMContentLoaded', () => {
     hookAiUi();
     resetSim();
