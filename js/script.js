@@ -1,4 +1,6 @@
 // js/script.js
+// Modalità Umano vs IA — con salvataggio Timeline per report grafico
+
 const SIZE = 12;
 const SHIPS_CONFIG = [
     {name: "Portaerei", len: 5},
@@ -13,11 +15,14 @@ let playerBoard, aiBoard, isPlacementPhase, currentShipIdx, orientation, aiTarge
 let turnCount = 0;
 let showHeatmap = false;
 
-// --- Nuove variabili di statistica per il report H vs AI ---
+// Stats Totali
 let statsHumanHits = 0;
 let statsHumanMisses = 0;
 let statsAIHits = 0;
 let statsAIMisses = 0;
+
+// LOG BATTAGLIA (Timeline)
+let battleLog = [];
 
 function logToConsole(msg, type = 'info') {
     const consoleBody = document.getElementById('ai-console');
@@ -38,11 +43,13 @@ function resetGame() {
     aiTargetStack = [];
     turnCount = 0;
 
-    // reset statistiche
     statsHumanHits = 0;
     statsHumanMisses = 0;
     statsAIHits = 0;
     statsAIMisses = 0;
+    
+    // Reset Log
+    battleLog = [];
     
     document.getElementById('turn-display').innerText = "0";
     const diffSel = document.getElementById('difficulty-select');
@@ -69,17 +76,13 @@ function handleCellClick(id, r, c) {
             }
             currentShipIdx++;
             if (currentShipIdx >= SHIPS_CONFIG.length) {
-                // FINE FASE SETUP
                 isPlacementPhase = false;
                 const setup = document.getElementById('setup-controls');
                 const game = document.getElementById('game-controls');
                 if (setup) setup.style.display = 'none';
                 if (game) game.style.display = 'block';
-                
-                // BLOCCA LA SCELTA DELLA DIFFICOLTÀ QUI
                 const diffSel = document.getElementById('difficulty-select');
                 if (diffSel) diffSel.disabled = true;
-                
                 logToConsole("FLOTTA PRONTA. MODALITÀ IA CONFERMATA E BLOCCATA.", "warn");
             }
             updateSetupUI();
@@ -90,14 +93,23 @@ function handleCellClick(id, r, c) {
         turnCount++;
         document.getElementById('turn-display').innerText = turnCount;
 
-        // Conta colpo umano prima di modificare la board
+        let isHit = false;
         if (aiBoard[r][c] === 1) {
             statsHumanHits++;
             aiBoard[r][c] = 3;
+            isHit = true;
         } else {
             statsHumanMisses++;
             aiBoard[r][c] = 2;
+            isHit = false;
         }
+
+        // REGISTRAZIONE UTENTE (A)
+        battleLog.push({
+            turn: turnCount,
+            shooter: 'A', // Human is A
+            isHit: isHit
+        });
 
         renderBoard('ai-board', aiBoard, true);
 
@@ -105,7 +117,6 @@ function handleCellClick(id, r, c) {
             setTimeout(aiTurn, 400);
         } else {
             logToConsole("VITTORIA UTENTE!", "warn");
-            // Salva report Human vs AI (winner 'A' = human)
             saveHvAReport('A');
         }
     }
@@ -115,7 +126,6 @@ function aiTurn() {
     const diff = document.getElementById('difficulty-select') ? document.getElementById('difficulty-select').value : 'easy';
     let shot;
     
-    // Messaggi specifici richiesti
     if (diff === 'hard') {
         logToConsole("Attacco probabilistico in corso...");
         shot = getHardShot();
@@ -128,27 +138,43 @@ function aiTurn() {
     }
 
     const { r, c } = shot;
+    let isHit = false;
+
     if (playerBoard[r][c] === 1) {
         playerBoard[r][c] = 3;
         statsAIHits++;
+        isHit = true;
         logToConsole(`AI: COLPITO a [${r},${c}]!`, "warn");
         aiTargetStack.push({r:r-1, c}, {r:r+1, c}, {r, c:c-1}, {r, c:c+1});
-        if(checkWin(playerBoard)) {
-            logToConsole("AI VITTORIA: Flotta nemica distrutta.");
-            // Salva report Human vs AI (winner 'B' = AI)
-            saveHvAReport('B');
-        } else {
-            setTimeout(aiTurn, 600);
-        }
     } else {
         playerBoard[r][c] = 2;
         statsAIMisses++;
+        isHit = false;
         logToConsole(`AI: ACQUA a [${r},${c}]`, "info");
     }
+
+    // REGISTRAZIONE AI (B)
+    battleLog.push({
+        turn: turnCount,
+        shooter: 'B', // AI is B
+        isHit: isHit
+    });
+
     renderBoard('player-board', playerBoard, false);
+
+    if(checkWin(playerBoard)) {
+        logToConsole("AI VITTORIA: Flotta nemica distrutta.");
+        saveHvAReport('B');
+    } else if (isHit) {
+        // Se l'IA colpisce, rigioca subito dopo breve delay? 
+        // Nel codice precedente l'IA rigiocava. Qui manteniamo lo standard.
+        // Attenzione: se rigioca, è tecnicamente lo stesso turno o no?
+        // Per semplicità nel grafico teniamo lo stesso "turnCount" o incrementiamo?
+        // In Battleship di solito si rigioca. 
+        setTimeout(aiTurn, 600);
+    }
 }
 
-// ... (tutte le altre funzioni di supporto rimangono uguali a prima)
 function generateProbabilityMap() {
     let pMap = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
     SHIPS_CONFIG.forEach(s => {
@@ -245,7 +271,6 @@ function placeAiShips() {
             }
         }
         if(!placed) {
-            // fallback scan
             outer: for (let rr = 0; rr < SIZE && !placed; rr++) {
                 for (let cc = 0; cc < SIZE && !placed; cc++) {
                     if (canFit(aiBoard, rr, cc, s.len, 'H')) {
@@ -274,16 +299,12 @@ function updateSetupUI() {
     }
 }
 
-// --- Funzione che salva il report Human vs AI in localStorage ---
-// winner: 'A' = Utente, 'B' = AI
 function saveHvAReport(winner) {
     const diffSel = document.getElementById('difficulty-select');
     const difficultyValue = diffSel ? diffSel.value : 'easy';
     const difficultyLabel = diffSel ? (diffSel.options[diffSel.selectedIndex] ? diffSel.options[diffSel.selectedIndex].text : difficultyValue) : difficultyValue;
 
     const reportData = {
-        // usiamo la stessa struttura che usa il report IA vs IA,
-        // mappando AGENTE A = UTENTE (blue) e AGENTE B = IA (red)
         winner: winner,
         turns: turnCount,
         timestamp: new Date().toLocaleString(),
@@ -291,9 +312,9 @@ function saveHvAReport(winner) {
             A: { hits: statsHumanHits, misses: statsHumanMisses, algo: 'UTENTE' },
             B: { hits: statsAIHits, misses: statsAIMisses, algo: difficultyLabel }
         },
-        // parametri utili per distinguere il report e renderlo correttamente
+        history: battleLog, // Salva la timeline
         params: {
-            mode: 'HVA', // Human vs AI
+            mode: 'HVA',
             iaDifficulty: difficultyValue,
             iaDifficultyLabel: difficultyLabel,
             size: SIZE,
