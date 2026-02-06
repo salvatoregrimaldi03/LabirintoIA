@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isHvA) {
             labelA = "UTENTE";
             labelB = data.params.iaDifficultyLabel || (data.stats && data.stats.B && data.stats.B.algo) || 'IA';
-            winnerSpan.innerText = (data.winner === 'A') ? `${labelA} (VITTORIA)` : `IA (VITTORIA)`;
+            winnerSpan.innerText = (data.winner === 'A') ? `${labelA}` : `IA`;
             winnerSpan.style.color = (data.winner === 'A') ? colorA : colorB;
         } else {
             labelA = (data.stats && data.stats.A && data.stats.A.algo) ? data.stats.A.algo : 'IA_A';
