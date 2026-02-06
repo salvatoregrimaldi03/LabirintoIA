@@ -1,26 +1,88 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Battleship AI - Mission Report</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/report.css">
-    
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/report.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        /* Stili aggiuntivi per migliorare la generazione PDF */
+        @media print {
+            body {
+                background-color: #050a10 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            
+            .scanline,
+            .controls-area {
+                display: none !important;
+            }
+            
+            .report-container {
+                page-break-inside: avoid;
+            }
+            
+            .stat-card,
+            .comparison-card {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            
+            canvas {
+                max-width: 100%;
+                height: auto;
+            }
+        }
+        
+        /* Assicura che le immagini dei grafici siano visualizzate correttamente */
+        .chart-pdf-image {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        /* Migliora il layout dei grafici per il PDF */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            margin: 1rem 0;
+        }
+        
+        .chart-container canvas {
+            max-width: 100% !important;
+            max-height: 100% !important;
+        }
+        
+        /* Assicura che il comparison chart sia ben visibile */
+        .comparison-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            margin: 1rem auto;
+        }
+        
+        /* Previene problemi di overflow nel PDF */
+        .report-container * {
+            box-sizing: border-box;
+        }
+    </style>
 </head>
 <body>
+    <!-- decorazione UI (verrà rimossa nella copia per il PDF) -->
     <div class="scanline"></div>
 
     <div class="container">
-        
         <div id="pdf-content" class="report-container">
-            
             <div class="report-header">
                 <h1 data-text="MISSION REPORT">MISSION REPORT</h1>
-                <p style="color:#888; margin-top:5px; font-size: 0.9em;">ANALISI TATTICA & EFFICIENZA ALGORITMICA</p>
-                <div style="margin-top: 10px; font-family: monospace; color: #00f2ff;">
+                <p class="subtitle">ANALISI TATTICA &amp; EFFICIENZA ALGORITMICA</p>
+                <div class="meta">
                     <span id="report-date">DATA: --/--/----</span>
                 </div>
             </div>
@@ -29,57 +91,49 @@
                 WINNER: <span id="winner-name">CALCOLO IN CORSO...</span>
             </div>
 
+            <!-- DUE DOUGHNUT -->
             <div class="stats-grid">
-                <div class="stat-card" style="border-top: 3px solid #00f2ff;">
+                <div class="stat-card card-blue">
                     <h2>AGENTE A (BLUE)</h2>
                     <p class="data-label">IDENTIFICATIVO</p>
                     <div class="data-val" id="algo-a">---</div>
-                    
                     <div class="chart-container">
                         <canvas id="chartA"></canvas>
                     </div>
-                    
-                    <p style="text-align:center; margin-top:10px; font-family:monospace;">
-                        ACCURATEZZA: <span id="acc-a" style="color:#00f2ff; font-weight:bold; font-size:1.2em;">0%</span>
-                    </p>
+                    <p class="accuracy">ACCURATEZZA: <span id="acc-a">0%</span></p>
                 </div>
 
-                <div class="stat-card" style="border-top: 3px solid #ff0055;">
+                <div class="stat-card card-red">
                     <h2>AGENTE B (RED)</h2>
                     <p class="data-label">IDENTIFICATIVO</p>
                     <div class="data-val" id="algo-b">---</div>
-                    
                     <div class="chart-container">
                         <canvas id="chartB"></canvas>
                     </div>
-                    
-                    <p style="text-align:center; margin-top:10px; font-family:monospace;">
-                        ACCURATEZZA: <span id="acc-b" style="color:#ff0055; font-weight:bold; font-size:1.2em;">0%</span>
-                    </p>
+                    <p class="accuracy">ACCURATEZZA: <span id="acc-b">0%</span></p>
                 </div>
             </div>
 
-            <div class="stat-card" style="page-break-inside: avoid;">
+            <!-- ANALISI COMPARATIVA -->
+            <div class="stat-card comparison-card">
                 <h2>ANALISI COMPARATIVA</h2>
                 <div class="comparison-container">
                     <canvas id="comparisonChart"></canvas>
                 </div>
-                <div style="text-align:center; margin-top:20px; border-top:1px solid rgba(255,255,255,0.1); padding-top:15px;">
-                    <span class="data-label">DURATA SCONTRO: </span>
-                    <span id="total-turns" style="color:#fff; font-weight:bold; font-size:1.2em; margin-left: 10px;">0</span> TURNI
+                <div class="fight-length">
+                    <span class="data-label">DURATA SCONTRO:</span>
+                    <span id="total-turns">0</span> TURNI
                 </div>
             </div>
 
-            <div style="text-align:center; margin-top:40px; font-size:0.7em; color:#444; border-top: 1px dashed #333; padding-top: 10px;">
-                GENERATED BY BATTLESHIP TACTICAL SYSTEM
-            </div>
+            <div class="footer-note">GENERATED BY BATTLESHIP TACTICAL SYSTEM</div>
         </div>
+
         <div class="controls-area">
             <button class="btn-neon" id="download-pdf">SCARICA PDF</button>
             <button class="btn-reset" onclick="window.location.href='ai_vs_ai.html'">NUOVA SIMULAZIONE</button>
             <button class="btn-neon" onclick="window.location.href='index.html'">TORNA ALLA HOME</button>
         </div>
-
     </div>
 
     <script src="js/report.js"></script>
