@@ -30,7 +30,6 @@ let showShipsA = false;
 let showShipsB = false;
 
 // LOG BATTAGLIA (Timeline per il grafico)
-// Struttura:Array<{ turn: number, shooter: 'A'|'B', isHit: boolean }>
 let battleLog = [];
 
 // Statistiche totali
@@ -100,6 +99,7 @@ function resetSim() {
     if ($('sim-status')) $('sim-status').innerText = 'FERMA';
     if ($('sim-turn')) $('sim-turn').innerText = '0';
 
+    // Nascondi bottone Nuovo Report al reset
     const btnNewReport = $('btn-new-report');
     if (btnNewReport) btnNewReport.style.display = 'none';
 
@@ -349,13 +349,12 @@ function finishGame(winner) {
     logSim(`IA ${winner} VINCE LA SIMULAZIONE!`, 'all', 'warn');
     stopSimulation();
 
-    // SALVA REPORT CON HISTORY
     const reportData = {
         winner,
         turns: simTurnCount,
         timestamp: new Date().toLocaleString(),
         stats: matchStats,
-        history: battleLog, // <-- ECCO IL NUOVO DATO
+        history: battleLog,
         params: {
             size: SIZE,
             ships: SHIPS_CONFIG.map(s => ({ name: s.name, len: s.len })),
@@ -365,9 +364,10 @@ function finishGame(winner) {
     };
 
     try {
-        localStorage.setItem('battleshipReport', JSON.stringify(reportData));
+        // Salviamo lo scontro appena finito in una chiave dedicata al CORRENTE
+        localStorage.setItem('battleshipReport_current', JSON.stringify(reportData));
     } catch (e) {
-        console.warn('Impossibile salvare report in localStorage:', e);
+        console.warn('Errore salvataggio:', e);
     }
 
     const btn = $('btn-new-report');
@@ -377,11 +377,27 @@ function finishGame(winner) {
 // ---------------- CONTROLLI ----------------
 function startSimulation() {
     if (running) return;
+
+    // LOGICA DI ARCHIVIAZIONE
+    // Se c'è un report "current" (della partita appena giocata), lo spostiamo in "battleshipReport" (archivio)
+    // Così "Ultimo Report" punterà a quello, lasciando libero "current" per la nuova partita.
+    const finishedMatch = localStorage.getItem('battleshipReport_current');
+    if (finishedMatch) {
+        localStorage.setItem('battleshipReport', finishedMatch);
+        
+        // Aggiorniamo subito la visibilità del bottone Ultimo Report
+        const lastBtn = $('last-report-btn');
+        if (lastBtn) lastBtn.style.display = 'inline-block';
+    }
+
     running = true;
     lockAiSelectors(true);
     if ($('sim-status')) $('sim-status').innerText = 'IN ESECUZIONE';
+    
+    // Nascondiamo il bottone "Nuovo Report" finché la nuova partita non finisce
     const btnNew = $('btn-new-report');
     if (btnNew) btnNew.style.display = 'none';
+    
     logSim('Simulazione avviata.', 'all', 'info');
     runSimulationStep();
 }
@@ -426,6 +442,7 @@ function hookAiUi() {
         logSim(`MOSTRA NAVI B: ${showShipsB ? 'ON' : 'OFF'}`, 'B', 'info');
     };
 
+    // Controlla se esiste un vecchio report salvato al caricamento pagina
     try {
         const saved = localStorage.getItem('battleshipReport');
         if (saved && lastReportBtn) lastReportBtn.style.display = 'inline-block';
@@ -447,3 +464,16 @@ document.addEventListener('DOMContentLoaded', () => {
     hookAiUi();
     resetSim();
 });
+
+// Funzione chiamata dal bottone NUOVO REPORT
+function viewCurrentReport() {
+    // Recuperiamo i dati della partita APPENA FINITA
+    const current = localStorage.getItem('battleshipReport_current');
+    if (current) {
+        // Li salviamo nella chiave di visualizzazione
+        localStorage.setItem('battleshipReport_viewing', current);
+        // IMPORTANTE: Uso type=current per uniformità con il bottone HTML che usa type=last
+        // Se report.html controlla il parametro "type", ora funzionerà correttamente.
+        window.open('report.html?type=current', '_blank');
+    }
+}
